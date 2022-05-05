@@ -193,6 +193,7 @@ you need to have in your config.
 [Kickstart.nvim]() is an awesome learning project and I would absolutely recommend it for anyone new to configuring Neovim with Lua.
 It also has very different goals compared to NightVim. 
 > The goal of this repo is not to create a neovim configuration framework
+
 From the Kickstart.nvim repo
 
 ## License
