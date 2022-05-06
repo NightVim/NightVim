@@ -284,7 +284,15 @@ local function init(autocmd_opts)
 		telescope.load_extension'fzf'
 	end
 
-	night.userconfig = debug.getinfo(1, 'S').source:sub(2):match('(.*/)') ..'user.lua'
+	local filename = debug.getinfo(1, 'S').source:match("^.*[/\\](.*.lua)$")
+	if filename == 'init.lua' then
+		night.userconfig = debug.getinfo(1, 'S').source:sub(2):match('(.*/)') ..'user.lua'
+	elseif filename == 'sysinit.lua' then
+		night.userconfig = vim.env.HOME .. '/.config/nvim/init.lua'
+	else
+		night.userconfig = debug.getinfo(1, 'S').short_src
+	end
+
 	-- N: NightVim
 	night.nmap{'<leader>nr', '<CMD>luafile ' .. night.userconfig .. '<CR>'}
 	night.nmap{'<leader>ne', '<CMD>edit ' .. night.userconfig .. '<CR>'}
@@ -299,7 +307,7 @@ local function init(autocmd_opts)
 			vim.cmd'mode'
 		end
 	})
-	local filename = debug.getinfo(1, 'S').source:match("^.*[/\\](.*.lua)$")
+
 	if filename == 'init.lua' then
 		local ok, err = pcall(require, 'user')
 		if not ok then
