@@ -72,34 +72,10 @@ night.log = {
 night.prequire = function(m)
 	local ok, err = pcall(require, m)
 	if not ok then
-		night.log.err('[prequire|' .. debug.getinfo(2,'S').short_src .. '] Failed to load module `' .. m .. '`')
+		night.log.warn('[prequire|' .. debug.getinfo(2,'S').short_src .. '] Failed to load module `' .. m .. '`')
 		return nil, err
 	end
 	return err
-end
-
-night.lsp = function(server, opts)
-	local lspconfig = night.prequire'lspconfig'
-	if lspconfig then
-		lspconfig[server].setup(opts)
-	end
-end
-
-night.on_attach = function(client, bufnr)
-	night.log.info('[LSP] Attaching `' .. client.name .. '` to buffer: ' .. bufnr)
-
-	vim.api.nvim_buf_set_option(bufnr, 'omnifunc', 'v:lua.vim.lsp.omnifunc')
-end
-
-night.color = function(theme)
-	local colorbuddy = night.prequire'colorbuddy'
-	if colorbuddy then
-		local ok = pcall(colorbuddy.colorscheme, theme)
-		if ok then
-			return
-		end
-	end
-	vim.api.nvim_command('colorscheme ' .. theme)
 end
 
 local packer_bootstrap = nil
@@ -126,8 +102,6 @@ night.plugins = function(fun)
 				'hrsh7th/cmp-path',
 				'L3MON4D3/LuaSnip',
 				'saadparwaiz1/cmp_luasnip',
-				config = function()
-				end,
 			}
 
 			-- Treesitter
@@ -139,7 +113,6 @@ night.plugins = function(fun)
 			-- Whichkey
 			use {
 				"folke/which-key.nvim",
-				config = function() require("which-key").setup {} end,
 			}
 
 			-- Colors
@@ -149,16 +122,16 @@ night.plugins = function(fun)
 
 			-- Fuzzy finding
 			use {
+				'nvim-lua/popup.nvim',
+				'nvim-lua/plenary.nvim',
 				'nvim-telescope/telescope.nvim',
-				requires = {
-					'nvim-lua/popup.nvim',
-					'nvim-lua/plenary.nvim'
-				},
 				{ 'nvim-telescope/telescope-fzf-native.nvim', run = 'make' },
 				'nvim-telescope/telescope-file-browser.nvim',
 			}
 
-			fun(use)
+			if fun then
+				fun(use)
+			end
 
 			if packer_bootstrap then
 				packer.sync()
@@ -167,6 +140,186 @@ night.plugins = function(fun)
 	end
 end
 
+night.lsp = function(server, opts)
+	local lspconfig = night.prequire'lspconfig'
+	if lspconfig then
+		lspconfig[server].setup(opts)
+	end
+end
+
+night.on_attach = function(client, bufnr)
+	night.log.info('[LSP] Attaching `' .. client.name .. '` to buffer: ' .. bufnr)
+
+	vim.api.nvim_buf_set_option(bufnr, 'omnifunc', 'v:lua.vim.lsp.omnifunc')
+end
+
+night.color = function(theme)
+	local colorbuddy = night.prequire'colorbuddy'
+	if colorbuddy then
+		local ok = pcall(colorbuddy.colorscheme, theme)
+		if not ok then
+			return
+		end
+	end
+	vim.api.nvim_command('colorscheme ' .. theme)
+end
+
+night.prelude = function(tbl)
+	if tbl == nil then
+		-- Table is not nil so only export the wanted parts of the prelude
+		tbl = {
+			'prequire',
+			'nmap',
+			'vmap',
+			'imap',
+			'plugins',
+			'color',
+			'lsp',
+			'command',
+			'map',
+			'log',
+			'userconfig'
+		}
+	end
+	local returns = {}
+	for _, val in pairs(tbl) do
+		table.insert(returns, night[val])
+	end
+	return unpack(returns)
+end
+
+
+local function init(autocmd_opts)
+	if autocmd_opts then
+		vim.api.nvim_del_autocmd(autocmd_opts.id)
+	end
+
+	-- Set up Lua LSP with proper globals for the neovim Lua API and the sysinit globals
+	local runtime_path = vim.split(package.path, ';')
+	table.insert(runtime_path, "lua/?.lua")
+	table.insert(runtime_path, "lua/?/init.lua")
+	table.insert(runtime_path, vim.env.VIM .. "/sysinit.lua")
+	night.lsp('sumneko_lua', {
+		on_attach = night.on_attach,
+		flags = {
+			debounce_text_changes = 150,
+		},
+		settings = {
+			Lua = {
+				runtime = {
+					version = 'LuaJIT',
+					path = runtime_path,
+				},
+				diagnostics = {
+					globals = {
+						'vim',
+						'night'
+					},
+				},
+				workspace = {
+					library = vim.api.nvim_get_runtime_file("", true),
+					checkThirdParty = false,
+				},
+				telemetry = {
+					enable = false,
+				},
+			},
+		},
+	})
+
+	-- Set up Which Key
+	local whichkey = night.prequire'which-key'
+	if whichkey then
+		whichkey.setup{}
+	end
+
+	-- Set up nvim-cmp for autocompletion
+	-- cmp setup
+	local cmp = night.prequire'cmp'
+	if cmp then
+		cmp.setup({
+			snippet = {
+				expand = function(args)
+					require('luasnip').lsp_expand(args.body)
+				end,
+			},
+			mapping = cmp.mapping.preset.insert({
+				['<C-b>'] = cmp.mapping(cmp.mapping.scroll_docs(-4), { 'i', 'c' }),
+				['<C-f>'] = cmp.mapping(cmp.mapping.scroll_docs(4), { 'i', 'c' }),
+				['<C-Space>'] = cmp.mapping(cmp.mapping.complete(), { 'i', 'c' }),
+				['<C-y>'] = cmp.config.disable, -- Specify `cmp.config.disable` if you want to remove the default `<C-y>` mapping.
+				['<C-e>'] = cmp.mapping({
+					i = cmp.mapping.abort(),
+					c = cmp.mapping.close(),
+				}),
+				['<CR>'] = cmp.mapping.confirm({ select = true }), -- Accept currently selected item. Set `select` to `false` to only confirm explicitly selected items.
+			}),
+			sources = cmp.config.sources({
+				{ name = 'nvim_lsp' },
+				{ name = 'luasnips' },
+				{ name = 'buffer' }
+			})
+		})
+	end
+
+	-- Register the Telescope file browser, and fzf sorter
+	local telescope = night.prequire'telescope'
+	if telescope then
+		telescope.setup {
+			extensions = {
+				fzf = {
+					-- false will only do exact matching
+					fuzzy = true,
+					-- override the generic sorter
+					override_generic_sorter = true,
+					-- override the file sorter
+					override_file_sorter = true,
+					-- or "ignore_case" or "respect_case"
+					-- the default case_mode is "smart_case"
+					case_mode = "smart_case",
+				}
+			}
+		}
+		telescope.load_extension'file_browser'
+		telescope.load_extension'fzf'
+	end
+
+	night.userconfig = debug.getinfo(1, 'S').source:sub(2):match('(.*/)') ..'user.lua'
+	-- N: NightVim
+	night.nmap{'<leader>nr', '<CMD>luafile ' .. night.userconfig .. '<CR>'}
+	night.nmap{'<leader>ne', '<CMD>edit ' .. night.userconfig .. '<CR>'}
+
+	vim.api.nvim_create_autocmd({"User"}, {
+		pattern = { "PackerComplete"},
+		callback = function()
+			if packer_bootstrap then
+				vim.cmd('luafile ' .. night.userconfig)
+				packer_bootstrap = nil
+			end
+			vim.cmd'mode'
+		end
+	})
+	local filename = debug.getinfo(1, 'S').source:match("^.*[/\\](.*.lua)$")
+	if filename == 'init.lua' then
+		local ok, err = pcall(require, 'user')
+		if not ok then
+			night.log.warn('Error detected while proccessing' .. debug.getinfo(1, 'S').source:sub(2):match('(.*/)') ..'user.lua\n' .. err:sub(3))
+		end
+	elseif filename ~= 'sysinit.lua' then
+		night.log.err'[NightVim] The NightVim config file should either be `~/.config/nvim/init.lua` or `$VIM/sysinit.lua`'
+	end
+end
+
+vim.api.nvim_create_autocmd({"User"}, {
+	pattern = { "PackerComplete"},
+	callback = init
+})
+
+if packer_bootstrap then
+	night.plugins()
+else
+	init()
+end
 
 -- Write file as sudo and reload the file
 night.command{"W", 'execute ":silent w !sudo tee % > /dev/null" | :edit!'}
@@ -186,124 +339,3 @@ night.nmap{'<leader>wsv', '<CMD>vsplit<CR>'}
 night.nmap{'<leader>wsh', '<CMD>split<CR>'}
 night.nmap{'<leader>wq', '<CMD>quit<CR>'}
 
-
--- Set up Lua LSP with proper globals for the neovim Lua API and the sysinit globals
-local capabilities = require('cmp_nvim_lsp').update_capabilities(vim.lsp.protocol.make_client_capabilities())
-local runtime_path = vim.split(package.path, ';')
-table.insert(runtime_path, "lua/?.lua")
-table.insert(runtime_path, "lua/?/init.lua")
-table.insert(runtime_path, vim.env.VIM .. "/sysinit.lua")
-night.lsp('sumneko_lua', {
-	on_attach = night.on_attach,
-	capabilities = capabilities,
-	flags = {
-		debounce_text_changes = 150,
-	},
-	settings = {
-		Lua = {
-			runtime = {
-				version = 'LuaJIT',
-				path = runtime_path,
-			},
-			diagnostics = {
-				globals = {
-					'vim',
-					'night'
-				},
-			},
-			workspace = {
-				library = vim.api.nvim_get_runtime_file("", true),
-				checkThirdParty = false,
-			},
-			telemetry = {
-				enable = false,
-			},
-		},
-	},
-})
-
--- Set up nvim-cmp for autocompletion
--- cmp setup
-local cmp = night.prequire'cmp'
-if cmp then
-	cmp.setup({
-		snippet = {
-			expand = function(args)
-				require('luasnip').lsp_expand(args.body)
-			end,
-		},
-		mapping = cmp.mapping.preset.insert({
-			['<C-b>'] = cmp.mapping(cmp.mapping.scroll_docs(-4), { 'i', 'c' }),
-			['<C-f>'] = cmp.mapping(cmp.mapping.scroll_docs(4), { 'i', 'c' }),
-			['<C-Space>'] = cmp.mapping(cmp.mapping.complete(), { 'i', 'c' }),
-			['<C-y>'] = cmp.config.disable, -- Specify `cmp.config.disable` if you want to remove the default `<C-y>` mapping.
-			['<C-e>'] = cmp.mapping({
-				i = cmp.mapping.abort(),
-				c = cmp.mapping.close(),
-			}),
-			['<CR>'] = cmp.mapping.confirm({ select = true }), -- Accept currently selected item. Set `select` to `false` to only confirm explicitly selected items.
-		}),
-		sources = cmp.config.sources({
-			{ name = 'nvim_lsp' },
-			{ name = 'luasnips' },
-			{ name = 'buffer' }
-		})
-	})
-end
-
--- Register the Telescope file browser, and fzf sorter
-local telescope = night.prequire'telescope'
-if telescope then
-	telescope.setup {
-		extensions = {
-			fzf = {
-				-- false will only do exact matching
-				fuzzy = true,
-				-- override the generic sorter
-				override_generic_sorter = true,
-				-- override the file sorter
-				override_file_sorter = true,
-				-- or "ignore_case" or "respect_case"
-				-- the default case_mode is "smart_case"
-				case_mode = "smart_case",
-			}
-		}
-	}
-	telescope.load_extension'file_browser'
-	telescope.load_extension'fzf'
-
-end
-
-
-night.prelude = function(tbl)
-	if tbl == nil then
-		-- Table is not nil so only export the wanted parts of the prelude
-		tbl = {
-			'prequire',
-			'nmap',
-			'vmap',
-			'imap',
-			'plugins',
-			'color',
-			'lsp',
-			'command',
-			'map',
-			'log',
-		}
-	end
-	local returns = {}
-	for _, val in pairs(tbl) do
-		table.insert(returns, night[val])
-	end
-	return unpack(returns)
-end
-
-local filename = debug.getinfo(1, 'S').source:match("^.*[/\\](.*.lua)$")
-if filename == 'init.lua' then
-	local ok, err = pcall(require, 'user')
-	if not ok then
-		night.log.warn('Error detected while proccessing' .. debug.getinfo(1, 'S').source:sub(2):match('(.*/)') ..'user.lua\n' .. err:sub(3))
-	end
-elseif filename ~= 'sysinit.lua' then
-	night.log.err'[NightVim] The NightVim config file should either be `~/.config/nvim/init.lua` or `$VIM/sysinit.lua`'
-end

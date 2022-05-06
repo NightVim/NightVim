@@ -37,6 +37,7 @@ curl "https://raw.githubusercontent.com/nyxkrage/NightVim/main/sysinit.{lua,vim}
 * `<leader>w(h|j|k|l)` to switch focus between windows, as an alternative to `C-w (h|j|k|l)`
 * `<leader>wq` to close the current window
 * `<leader>wsh` and `<leader>wsv` mapped for splitting windows horizontally and vertically, respectively
+* `<leader>nr` to reload your NightVim user config, and `<leader>ne` to open your NightVim user config for editing
 * `:W` and `:Wq` to use sudo to save root-owned files
 * `:Bquit` to close a buffer while keeping your window splits and positions
 * Lua LSP pre-configured* to make getting started writing your Neovim config in Neovim as fast as possible
@@ -89,7 +90,7 @@ With the `night.prelude` function, you can optionally include a table of which f
 -- manually binding to local variables
 local prequire = night.prequire
 -- using the full prelude
-local prequire, nmap, vmap, imap, plugins, color, lsp, command, map, log = night.prelude()
+local prequire, nmap, vmap, imap, plugins, color, lsp, command, map, log, userconfig = night.prelude()
 -- using part of the full prelude
 local prequire, nmap = night.prelude()
 -- optionally only pull nmap and imap out
@@ -153,6 +154,8 @@ if telescope then
 end
 ```
 This will also print an error if the module could not be properly loaded with the location in your config file of where you called `night.prequire`
+
+### *MORE DOCS WIP*
 
 ## User Config Example
 
