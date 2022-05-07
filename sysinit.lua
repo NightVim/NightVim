@@ -158,10 +158,11 @@ night.color = function(theme)
 	if colorbuddy then
 		local ok = pcall(colorbuddy.colorscheme, theme)
 		if not ok then
-			return
+			vim.log.err('[COLOR] Colorscheme `' .. theme .. '` is not a valid colorschem, make sure you ran :PackerSync and restarted Neovim')
 		end
+	else
+		vim.log.err('[COLOR] Colorbuddy could not be loaded, please try running :PackerSync and restarting Neovim')
 	end
-	vim.api.nvim_command('colorscheme ' .. theme)
 end
 
 night.prelude = function(tbl)
