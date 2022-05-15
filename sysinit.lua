@@ -84,6 +84,7 @@ if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
   packer_bootstrap = vim.fn.system{'git', 'clone', '--depth', '1', 'https://github.com/wbthomason/packer.nvim', install_path}
 end
 vim.api.nvim_command 'packadd packer.nvim'
+local native_fzf = false
 
 night.plugins = function(fun)
 	local packer = night.prequire'packer'
@@ -125,9 +126,24 @@ night.plugins = function(fun)
 				'nvim-lua/popup.nvim',
 				'nvim-lua/plenary.nvim',
 				'nvim-telescope/telescope.nvim',
-				{ 'nvim-telescope/telescope-fzf-native.nvim', run = 'make' },
 				'nvim-telescope/telescope-file-browser.nvim',
 			}
+
+			-- If CMake is installed prefer it for telescope-fzf-native
+			if vim.fn.executable'cmake' == 1 then
+				use { 'nvim-telescope/telescope-fzf-native.nvim', run = 'cmake -S. -Bbuild -DCMAKE_BUILD_TYPE=Release && cmake --build build --config Release && cmake --install build --prefix build' }
+				native_fzf = true
+			-- Not on Unix system, cannot use make, so abort
+			elseif vim.fn.has'unix' == 0 then
+				night.log.warn'Running on Windows and could not find `cmake`, `telescope-fzf-native` will NOT be installed'
+			-- On Unix but make is not installed, so cannot build fzf-native
+			elseif vim.fn.executable'make' == 0 then
+				night.log.warn'Could not find `make`, `telescope-fzf-native` will NOT be installed'
+			-- On Unix and make is installed falling back to the Makefile
+			else
+				use { 'nvim-telescope/telescope-fzf-native.nvim', run = 'make' }
+				native_fzf = true
+			end
 
 			if fun then
 				fun(use)
@@ -266,23 +282,25 @@ local function init(autocmd_opts)
 	-- Register the Telescope file browser, and fzf sorter
 	local telescope = night.prequire'telescope'
 	if telescope then
-		telescope.setup {
-			extensions = {
-				fzf = {
-					-- false will only do exact matching
-					fuzzy = true,
-					-- override the generic sorter
-					override_generic_sorter = true,
-					-- override the file sorter
-					override_file_sorter = true,
-					-- or "ignore_case" or "respect_case"
-					-- the default case_mode is "smart_case"
-					case_mode = "smart_case",
+		if native_fzf then
+			telescope.setup {
+				extensions = {
+					fzf = {
+						-- false will only do exact matching
+						fuzzy = true,
+						-- override the generic sorter
+						override_generic_sorter = true,
+						-- override the file sorter
+						override_file_sorter = true,
+						-- or "ignore_case" or "respect_case"
+						-- the default case_mode is "smart_case"
+						case_mode = "smart_case",
+					}
 				}
 			}
-		}
+			telescope.load_extension'fzf'
+		end
 		telescope.load_extension'file_browser'
-		telescope.load_extension'fzf'
 	end
 
 	local filename = debug.getinfo(1, 'S').source:match("^.*[/\\](.*.lua)$")
