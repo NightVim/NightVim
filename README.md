@@ -8,7 +8,7 @@ Takes care of all the boilerplate you don't want to handle, and lets you write t
 
 1. Download the `sysinit.lua` file into your neovim config directory as `init.lua`
 ```
-curl https://raw.githubusercontent.com/nyxkrage/NightVim/main/sysinit.lua --create-dirs --output ~/.config/nvim/init.lua
+curl https://raw.githubusercontent.com/NightVim/NightVim/main/sysinit.lua --create-dirs --output ~/.config/nvim/init.lua
 ```
 
 ### System Install
@@ -21,7 +21,7 @@ You should see an section that looks like this
 ```
 2. Download the `sysinit.lua` and `.vim` files into your system vimrc directory (In this case `$VIM`, that isn't set so `/usr/local/share/nvim`)
 ``` 
-curl "https://raw.githubusercontent.com/nyxkrage/NightVim/main/sysinit.{lua,vim}" --create-dirs --output "/usr/local/share/nvim/sysinit.#1"
+curl "https://raw.githubusercontent.com/NightVim/NightVim/main/sysinit.{lua,vim}" --create-dirs --output "/usr/local/share/nvim/sysinit.#1"
 ```
 
 ## NightVim manages the boring parts of the configuration
